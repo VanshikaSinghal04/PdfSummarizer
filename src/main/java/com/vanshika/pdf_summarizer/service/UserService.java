@@ -43,4 +43,7 @@ public class UserService {
         return userRepository.findByGoogleId(googleId)
             .orElse(null);
     }
+    public User findById(Long id) {
+        return userRepository.findById(id).orElse(null);
+    }
 }

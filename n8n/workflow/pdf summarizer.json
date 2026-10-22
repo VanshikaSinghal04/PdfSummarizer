@@ -1,0 +1,185 @@
+{
+  "name": "PDF Summarizer",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pdf-summarizer",
+        "options": {}
+      },
+      "id": "8ccbcbf0-b515-41bd-94b5-1c1d3e6f8b76",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "f700a4b2-3c5a-4005-b62f-4156c8f474fc"
+    },
+    {
+      "parameters": {
+        "bucketName": "={{ $json.body.bucket }}",
+        "fileKey": "={{ $json.body.pdfKey }}"
+      },
+      "id": "18065911-f4ba-4ada-946a-dad3e9fbfca0",
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 1,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "aws": {
+          "id": "q4hOrfHkC3gQkUjh",
+          "name": "AWS (IAM) account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "71ce70f3-47bf-41da-adee-435edebb5a63",
+      "name": "Extract Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $('Webhook').item.json.body.bucket }}",
+        "fileName": "={{ $('Webhook').item.json.body.summaryKey }}",
+        "binaryData": false,
+        "fileContent": "=={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "id": "faa9b6ac-7642-41a7-a8f6-d56bc6b79cb1",
+      "name": "Save Summary",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        0
+      ],
+      "credentials": {
+        "aws": {
+          "id": "q4hOrfHkC3gQkUjh",
+          "name": "AWS (IAM) account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Summarize this document in bullet points:\n\n{{ $json.text }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        672,
+        0
+      ],
+      "id": "83999ad2-f7c2-4f17-8b53-7b1899264831",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "f2c0cc36-321e-44d4-af3c-f997bdddfac2",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "vieZi8xLu5mmv5Hu",
+          "name": "Groq account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Save Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "919e9829-dd8d-4ea4-ab5a-ae043bf363db",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6ae1bfddadf1f2f6a335c8ae7742aaf25b1dc0ac3328e0e5686c62efb3ad0763"
+  },
+  "nodeGroups": [],
+  "id": "TIoeZmugdNu2x20H",
+  "tags": []
+}

@@ -8,7 +8,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.web.SecurityFilterChain;
 
 import com.vanshika.pdf_summarizer.service.UserService;
-
+import org.springframework.security.config.Customizer;
 @Configuration  //this tells Spring that this class contains configuration settings for the application and should be processed during startup when the index html page is loaded.treat this file as a set of rules/settings for the application
 @EnableWebSecurity//this tells Spring to enable web security for the application, which means that it will apply security measures to incoming HTTP requests and protect the application from unauthorized access.
 public class SecurityConfig {
@@ -41,8 +41,10 @@ public class SecurityConfig {
                         return oauth2User;
                     })
                 )
-            
             )
+                .oauth2ResourceServer(oauth2 ->
+                            oauth2.jwt(Customizer.withDefaults())
+                    )
             .logout(logout -> logout
                 .logoutSuccessUrl("/")
                 .permitAll() //this means that anyone can log out of the application without needing to be authenticated. The logout page is accessible to all users.

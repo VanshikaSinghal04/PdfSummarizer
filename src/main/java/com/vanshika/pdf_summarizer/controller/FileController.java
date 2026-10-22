@@ -17,6 +17,7 @@ import com.vanshika.pdf_summarizer.service.WebhookService;
 import com.vanshika.pdf_summarizer.service.ApiTokenService;
 import java.util.HashMap;
 import java.util.Map;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 @Controller//this tell the spring that this class will listen to incoming http request and respond to them.
 @CrossOrigin(origins = "*")//this allow frontend and backend to communicate with each other even if they are on different ports.
@@ -146,25 +147,48 @@ public class FileController {
 
         return ResponseEntity.ok(Map.of("token", token));
     }
-        
 
-    // GET /summary - frontend polls this
+
     @ResponseBody
     @GetMapping("/summary")
     public ResponseEntity<Map<String, Object>> getSummary(
-            @RequestParam("jobId") String jobId) {
+            @RequestParam("jobId") String jobId,
+            @AuthenticationPrincipal Jwt jwt) {
 
         Map<String, Object> response = new HashMap<>();
 
+        if (jwt == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        Long userId = Long.valueOf(jwt.getSubject());
+        User user = userService.findById(userId);
+
+        if (user == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        Upload upload = uploadRepository
+                .findBySummaryKeyAndUser(jobId, user)
+                .orElse(null);
+
+        if (upload == null) {
+            return ResponseEntity.notFound().build();
+        }
+
         try {
-            String summary = s3Service.getSummary(jobId);
+            if (!s3Service.summaryExists(upload.getSummaryKey())) {
+                response.put("ready", false);
+                return ResponseEntity.ok(response);
+            }
+
+            String summary = s3Service.getSummary(upload.getSummaryKey());
             response.put("ready", true);
             response.put("summary", summary);
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            response.put("ready", false);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.internalServerError().build();
         }
     }
 }

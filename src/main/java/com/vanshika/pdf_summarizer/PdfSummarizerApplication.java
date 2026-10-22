@@ -11,4 +11,6 @@ public class PdfSummarizerApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(PdfSummarizerApplication.class, args);//this line starts the Spring Boot application by calling the run method of the SpringApplication class, passing in the current class and any command-line arguments.
 	}
+
+
 }

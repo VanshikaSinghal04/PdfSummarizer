@@ -1,53 +1,38 @@
 package com.vanshika.pdf_summarizer.service;
 
-import com.vanshika.pdf_summarizer.model.ApiToken;
 import com.vanshika.pdf_summarizer.model.User;
-import com.vanshika.pdf_summarizer.repository.ApiTokenRepository;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.stereotype.Service;
-import java.util.Optional;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.util.Base64;
-import java.util.HexFormat;
+
+import java.time.Duration;
+import java.time.Instant;
 
 @Service
 public class ApiTokenService {
-    private final ApiTokenRepository repository;
-    private final SecureRandom random = new SecureRandom();
 
-    public ApiTokenService(ApiTokenRepository repository) {
-        this.repository = repository;
+    private final JwtEncoder jwtEncoder;
+
+    public ApiTokenService(JwtEncoder jwtEncoder) {
+        this.jwtEncoder = jwtEncoder;
     }
 
     public String createToken(User user) {
-        byte[] randomBytes = new byte[32];
-        random.nextBytes(randomBytes);
+        Instant now = Instant.now();
 
-        String secretToken = Base64.getUrlEncoder()
-                .withoutPadding()
-                .encodeToString(randomBytes);
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .subject(user.getId().toString())
+                .issuedAt(now)
+                .expiresAt(now.plus(Duration.ofHours(24)))
+                .build();
 
-        ApiToken token = new ApiToken();
-        token.setUser(user);
-        token.setTokenHash(hash(secretToken));
-        repository.save(token);
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
 
-        return secretToken;
-    }
-    public Optional<User> findUserByToken(String secretToken) {
-        String tokenHash = hash(secretToken);
-        return repository.findByTokenHash(tokenHash)
-                .map(ApiToken::getUser);
-    }
-    private String hash(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hashBytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hashBytes);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is unavailable", e);
-        }
+        return jwtEncoder.encode(
+                JwtEncoderParameters.from(header, claims)
+        ).getTokenValue();
     }
 }

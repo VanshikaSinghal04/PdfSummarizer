@@ -145,6 +145,15 @@
           onclick="uploadPdf()" disabled>
     Upload & Summarize
   </button>
+  <button class="copy-btn" onclick="createCliToken()">
+    Create CLI token
+  </button>
+
+  <div id="cliTokenBox" style="display: none;">
+    <p>Copy this token into your CLI. Keep it private.</p>
+    <textarea id="cliToken" rows="4" readonly></textarea>
+    <button class="copy-btn" onclick="copyCliToken()">Copy token</button>
+  </div>
 
   <div class="status" id="status"></div>
 
@@ -166,6 +175,7 @@
   const fileInput = document.getElementById("fileInput");
   const uploadBtn = document.getElementById("uploadBtn");
   let selectedFile = null;
+  let apiJwt = "";
 
   fileInput.addEventListener("change", () => {
     selectedFile = fileInput.files[0];
@@ -173,6 +183,29 @@
       "✅ " + selectedFile.name;
     uploadBtn.disabled = false;
   });
+  async function createCliToken() {
+    const response = await fetch("/api-tokens", {
+      method: "POST"
+    });
+
+    if (!response.ok) {
+      alert("Could not create the token. Please sign in again.");
+      return;
+    }
+
+    const result = await response.json();
+    apiJwt = result.token;
+
+    document.getElementById("cliToken").value = result.token;
+    document.getElementById("cliTokenBox").style.display = "block";
+  }
+
+  function copyCliToken() {
+    const token = document.getElementById("cliToken").value;
+
+    navigator.clipboard.writeText(token)
+            .then(() => alert("Token copied."));
+  }
 
   async function uploadPdf() {//this function handles the PDF upload and initiates the summarization process
     if (!selectedFile) return;
@@ -212,7 +245,12 @@
       }
       try {
         const res  = await fetch(
-          "/summary?jobId=" + encodeURIComponent(jobId));
+          "/summary?jobId=" + encodeURIComponent(jobId),
+            {
+                headers: {
+                "Authorization": "Bearer " + apiJwt
+                }
+            });
         const data = await res.json();
         if (data.ready) {
           clearInterval(timer);
@@ -281,22 +319,32 @@ async function viewSummary(summaryKey) {
     
     try {
         const res = await fetch(
-            "/summary?jobId=" + encodeURIComponent(summaryKey));
-        const data = await res.json();
-        
-        if (data.ready) {
-            document.getElementById("summaryText").textContent = 
-                data.summary;
-            document.getElementById("summaryBox").style.display = 
-                "block";
-            showStatus("success", "✅ Summary loaded!");
-        } else {
-            showStatus("info", "⏳ This summary is still processing...");
+            "/summary?jobId=" + encodeURIComponent(summaryKey),
+      {
+        headers: {
+          "Authorization"
+        :
+          "Bearer " + apiJwt
         }
-    } catch (e) {
+      });
+
+        const data = await res.json();
+
+        if (data.ready) {
+          document.getElementById("summaryText").textContent =
+                  data.summary;
+          document.getElementById("summaryBox").style.display =
+                  "block";
+          showStatus("success", "✅ Summary loaded!");
+        } else {
+          showStatus("info", "⏳ This summary is still processing...");
+        }
+      }
+        catch (e)
+        {
         showStatus("error", "❌ Could not load summary.");
-    }
-}
+    }}
+
 </script>
 </body>
 </html>
