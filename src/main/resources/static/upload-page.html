@@ -288,13 +288,15 @@ async function loadHistory() {
         
         const historyList = document.getElementById("historyList");
         
-        if (data.length === 0) {
+        const items = data.items || [];
+
+        if (items.length === 0) {
             historyList.innerHTML = 
                 '<p style="color:#888;font-size:13px">No summaries yet. Upload your first PDF!</p>';
             return;
         }
 
-        historyList.innerHTML = data.map(item => `
+        historyList.innerHTML = items.map(item => `
             <div class="history-item">
                 <div>
                     <strong>${item.filename}</strong><br>

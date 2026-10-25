@@ -1,4 +1,5 @@
 package com.vanshika.pdf_summarizer.controller;
+import com.nimbusds.jose.util.StandardCharset;
 import com.vanshika.pdf_summarizer.model.Upload;
 import com.vanshika.pdf_summarizer.model.User;
 import com.vanshika.pdf_summarizer.repository.UploadRepository;
@@ -6,6 +7,12 @@ import com.vanshika.pdf_summarizer.service.UserService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -106,21 +113,50 @@ public class FileController {
         }
     }
     @ResponseBody
-    @GetMapping("/history")
-    public ResponseEntity<List<Map<String, Object>>> getHistory(
-        @AuthenticationPrincipal OAuth2User principal)
+    @GetMapping("/history?")
+    public ResponseEntity<?> getHistory(
+        @AuthenticationPrincipal OAuth2User principal,
+        @RequestParam(required = false) String status,
+        @RequestParam(required = false) String pageToken,
+        @RequestParam(defaultValue = "20") int pageLimit)
     {
         try {
+        if (principal == null) {
+            return ResponseEntity.status(401).build();
+        }
+        if (pageLimit < 1 || pageLimit > 100) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "pageLimit must be between 1 and 100"));
+        }
+
         // Get logged in user
         String googleId = principal.getAttribute("sub");
         User user = userService.findByGoogleId(googleId);
+        if (user == null) {
+            return ResponseEntity.status(401).build();
+        }
 
-        // Get all uploads for this user
+        Cursor cursor;
+        try {
+            cursor = decodePageToken(pageToken);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "pageToken is invalid"));
+        }
+
+        // Fetch one extra item to determine whether a next page exists.
         List<Upload> uploads = uploadRepository
-            .findTop5ByUserOrderByCreatedAtDesc(user);
+            .findHistoryPage(user, normalize(status),
+                cursor == null ? null : cursor.createdAt(),
+                cursor == null ? null : cursor.id(),
+                PageRequest.of(0, pageLimit + 1));
 
-        // Convert to simple map list
-        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        boolean hasNextPage = uploads.size() > pageLimit;
+        if (hasNextPage) {
+            uploads = new ArrayList<>(uploads.subList(0, pageLimit));
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
         for (Upload upload : uploads) {
             Map<String, Object> item = new HashMap<>();
             item.put("id", upload.getId());
@@ -131,12 +167,48 @@ public class FileController {
             result.add(item);
         }
 
-        return ResponseEntity.ok(result);
+        Map<String, Object> response = new HashMap<>();
+        response.put("items", result);
+        response.put("pageLimit", pageLimit);
+        response.put("nextPageToken", hasNextPage
+            ? encodePageToken(uploads.get(uploads.size() - 1))
+            : null);
+        return ResponseEntity.ok(response);
 
     } catch (Exception e) {
         return ResponseEntity.internalServerError().build();
     }
 }
+
+    private String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String encodePageToken(Upload upload) {
+        String value = upload.getCreatedAt() + "|" + upload.getId();
+        return Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+
+    private Cursor decodePageToken(String pageToken) {
+        if (pageToken == null || pageToken.isBlank()) {
+            return null;
+        }
+        try {
+            String value = new String(Base64.getUrlDecoder().decode(pageToken), StandardCharsets.UTF_8);
+            String[] parts = value.split("\\|", -1);
+            if (parts.length != 2) {
+                throw new IllegalArgumentException("Malformed page token");
+            }
+            return new Cursor(LocalDateTime.parse(parts[0]), Long.parseLong(parts[1]));
+        } catch (IllegalArgumentException | DateTimeParseException e) {
+            throw new IllegalArgumentException("Malformed page token", e);
+        }
+    }
+
+    private record Cursor(LocalDateTime createdAt, Long id) { }
+
     @PostMapping("/api-tokens")
     @ResponseBody
     public ResponseEntity<Map<String, String>> createApiToken(

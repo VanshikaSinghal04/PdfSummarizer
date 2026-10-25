@@ -42,9 +42,9 @@ public class SecurityConfig {
                     })
                 )
             )
-                .oauth2ResourceServer(oauth2 ->
-                            oauth2.jwt(Customizer.withDefaults())
-                    )
+            .oauth2ResourceServer(oauth2 ->
+                        oauth2.jwt(Customizer.withDefaults())
+            )
             .logout(logout -> logout
                 .logoutSuccessUrl("/")
                 .permitAll() //this means that anyone can log out of the application without needing to be authenticated. The logout page is accessible to all users.
